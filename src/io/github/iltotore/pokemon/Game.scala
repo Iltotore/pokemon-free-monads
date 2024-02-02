@@ -33,7 +33,6 @@ case class Game(turn: Int, players: Map[WhichPlayer, Player]):
         val playerActive = WhichPokemon.Active(player)
         val playerActivePokemon = game.getPokemon(playerActive)
 
-        println(s"${playerActivePokemon.species}, ${playerActivePokemon.alive}, ${playerActivePokemon.currentHealth}")
         if playerActivePokemon.alive then
           val activeAbilities = game.players.map(_._2.activePokemon.ability)
 
@@ -48,9 +47,7 @@ case class Game(turn: Int, players: Map[WhichPlayer, Player]):
       case (game, (which, player)) =>
         val playerActive = WhichPokemon.Active(which)
         val playerActivePokemon = game.getPokemon(playerActive)
-
-        println(s"END ${playerActivePokemon.species}, ${playerActivePokemon.alive}, ${playerActivePokemon.currentHealth}")
-
+        
         if playerActivePokemon.alive then
           val activeAbilities = game.players.map(_._2.activePokemon.ability)
 
