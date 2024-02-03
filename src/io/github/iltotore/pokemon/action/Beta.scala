@@ -1,79 +1,88 @@
 package io.github.iltotore.pokemon.action
 
+import io.github.iltotore.pokemon.util.*
 import io.github.iltotore.pokemon.{Status, WhichPlayer, WhichPokemon}
 
-enum Beta[+Out]:
-  case GetHealth(pokemon: WhichPokemon) extends Beta[Double]
-  case GetMaxHealth(pokemon: WhichPokemon) extends Beta[Double]
-  case GetStatus(pokemon: WhichPokemon) extends Beta[Status]
-  case SetStatus(pokemon: WhichPokemon, status: Status) extends Beta[Unit]
-  case Damage(pokemon: WhichPokemon, cause: Cause, amount: Double) extends Beta[Unit]
-  case Heal(pokemon: WhichPokemon, cause: Cause, amount: Double) extends Beta[Unit]
-  case SwitchIn(player: WhichPlayer, slot: Int) extends Beta[Unit]
-  case InflictStatus(pokemon: WhichPokemon, status: Status) extends Beta[Unit]
-  case CureStatus(pokemon: WhichPokemon) extends Beta[Unit]
-  case Random(chance: Double, program: Beta[Unit]) extends Beta[Unit]
-  case FlatMap[A, B](program: Beta[A], f: A => Beta[B]) extends Beta[B]
-  case Pure(result: Out)
-
-  def flatMap[B](f: Out => Beta[B]): Beta[B] = FlatMap(this, f)
-
-  def map[B](f: Out => B): Beta[B] = flatMap(out => Pure(f(out)))
-
-  def rewrite[A](rewriteRule: PartialFunction[Beta[A], Beta[A]]): Beta[Out] = this match
-    // Despite the "unchecked" warning, `isDefinedAt` checks if the rule accepts the program so this case is sound.
-    case program: Beta[A] @unchecked if rewriteRule.isDefinedAt(program) => rewriteRule(program).asInstanceOf[Beta[Out]]
-    case FlatMap(program, f)                                             => FlatMap(program.rewrite(rewriteRule), p => f(p).rewrite(rewriteRule))
-    case program                                                         => program
-
-  def compile: Alpha[Out] = this match
-    case GetHealth(pokemon)         => Alpha.GetHealth(pokemon)
-    case GetMaxHealth(pokemon)      => Alpha.GetMaxHealth(pokemon)
-    case GetStatus(pokemon)         => Alpha.GetStatus(pokemon)
-    case SetStatus(pokemon, status) => Alpha.SetStatus(pokemon, status)
-
-    case Damage(pokemon, cause, amount) =>
-      for
-        health <- Alpha.GetHealth(pokemon)
-        effectiveness <- cause match
-          case Cause.Attack(_, tpe) =>
-            for
-              defTpe <- Alpha.GetType(pokemon)
-            yield defTpe.effectiveness(tpe).coefficient
-
-          case _ => Alpha.Pure(1.0)
-
-        _ <- Alpha.SetHealth(pokemon, math.max(0, health - amount * effectiveness))
-        h <- Alpha.GetHealth(pokemon)
-      yield ()
-
-    case Heal(pokemon, cause, amount) =>
-      for
-        health <- Alpha.GetHealth(pokemon)
-        maxHealth <- Alpha.GetMaxHealth(pokemon)
-        _ <- Alpha.SetHealth(pokemon, math.min(maxHealth, health + amount))
-      yield ()
-
-    case SwitchIn(player, slot) => Alpha.SetActivePokemon(player, slot)
-    case InflictStatus(pokemon, status) =>
-      for
-        current <- Alpha.GetStatus(pokemon)
-        _ <-
-          if current == Status.Healthy && status != Status.Healthy then Alpha.SetStatus(pokemon, status)
-          else Alpha.Pure(())
-      yield ()
-
-    case CureStatus(pokemon)     => Alpha.SetStatus(pokemon, Status.Healthy)
-    case Random(chance, program) => Alpha.Random(chance, program.compile)
-    case FlatMap(program, f)     => Alpha.FlatMap(program.compile, f.andThen(_.compile))
-    case Pure(value)             => Alpha.Pure(value)
-
+type Beta[A] = Free[Beta.Algebra, A]
 object Beta:
 
+  enum Algebra[Out]:
+    case GetHealth(pokemon: WhichPokemon) extends Algebra[Double]
+    case GetMaxHealth(pokemon: WhichPokemon) extends Algebra[Double]
+    case GetStatus(pokemon: WhichPokemon) extends Algebra[Status]
+    case Damage(pokemon: WhichPokemon, cause: Cause, amount: Double) extends Algebra[Unit]
+    case Heal(pokemon: WhichPokemon, cause: Cause, amount: Double) extends Algebra[Unit]
+    case SwitchIn(player: WhichPlayer, slot: Int) extends Algebra[Unit]
+    case SetStatus(pokemon: WhichPokemon, status: Status) extends Algebra[Unit]
+    case InflictStatus(pokemon: WhichPokemon, status: Status) extends Algebra[Unit]
+    case CureStatus(pokemon: WhichPokemon) extends Algebra[Unit]
+    case Random(chance: Double, program: Beta[Unit]) extends Algebra[Unit]
+
+  import Algebra.*
+  
+  val unit: Beta[Unit] = Free.pure(())
+
+  def getHealth(pokemon: WhichPokemon): Beta[Double] = Free.liftM(GetHealth(pokemon))
+
+  def getMaxHealth(pokemon: WhichPokemon): Beta[Double] = Free.liftM(GetMaxHealth(pokemon))
+
+  def getStatus(pokemon: WhichPokemon): Beta[Status] = Free.liftM(GetStatus(pokemon))
+  
+  def damage(pokemon: WhichPokemon, cause: Cause, amount: Double): Beta[Unit] = Free.liftM(Damage(pokemon, cause, amount))
+  
   def damagePercent(pokemon: WhichPokemon, cause: Cause, percent: Double): Beta[Unit] =
     for
-      maxHealth <- GetMaxHealth(pokemon)
-      _ <- Damage(pokemon, cause, percent * maxHealth)
+      maxHealth <- getMaxHealth(pokemon)
+      _         <- damage(pokemon, cause, maxHealth * percent)
     yield ()
 
-  def nothing: Beta[Unit] = Pure(())
+  def heal(pokemon: WhichPokemon, cause: Cause, amount: Double): Beta[Unit] = Free.liftM(Heal(pokemon, cause, amount))
+
+  def healPercent(pokemon: WhichPokemon, cause: Cause, percent: Double): Beta[Unit] =
+    for
+      maxHealth <- getMaxHealth(pokemon)
+      _ <- heal(pokemon, cause, maxHealth * percent)
+    yield ()
+
+  def switchIn(player: WhichPlayer, slot: Int): Beta[Unit] = Free.liftM(SwitchIn(player, slot))
+
+  def setStatus(pokemon: WhichPokemon, status: Status): Beta[Unit] = Free.liftM(SetStatus(pokemon, status))
+  
+  def inflictStatus(pokemon: WhichPokemon, status: Status): Beta[Unit] = Free.liftM(InflictStatus(pokemon, status))
+
+  def cureStatus(pokemon: WhichPokemon): Beta[Unit] = Free.liftM(CureStatus(pokemon))
+
+  def random(chance: Double, program: Beta[Unit]): Beta[Unit] = Free.liftM(Random(chance, program))
+  
+  def toAlpha: Algebra ~> Alpha = new:
+
+    override def apply[A](m: Algebra[A]): Alpha[A] = m match
+      case GetHealth(pokemon)    => Alpha.getHealth(pokemon)
+      case GetMaxHealth(pokemon) => Alpha.getMaxHealth(pokemon)
+      case GetStatus(pokemon)    => Alpha.getStatus(pokemon)
+      case Damage(pokemon, cause, amount) =>
+        for
+          effectiveness <- cause match
+            case Cause.Attack(_, tpe) =>
+              for
+                defTpe <- Alpha.getType(pokemon)
+              yield defTpe.effectiveness(tpe).coefficient
+
+            case _ => Alpha.pure(1.0)
+
+          _ <- Alpha.decreaseHealth(pokemon, amount * effectiveness)
+        yield ()
+
+      case Heal(pokemon, cause, amount)   => Alpha.increaseHealth(pokemon, amount)
+      case SwitchIn(player, slot)         => Alpha.setActivePokemon(player, slot)
+      case SetStatus(pokemon, status)     => Alpha.setStatus(pokemon, status)
+      case InflictStatus(pokemon, status) =>
+        for
+          current <- Alpha.getStatus(pokemon)
+          _ <-
+            if current == Status.Healthy && status != Status.Healthy then Alpha.setStatus(pokemon, status)
+            else Alpha.unit
+        yield ()
+  
+      case CureStatus(pokemon)     => Alpha.setStatus(pokemon, Status.Healthy)
+      case Random(chance, program) => Alpha.random(chance, program.foldMap(toAlpha))

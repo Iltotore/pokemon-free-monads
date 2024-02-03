@@ -3,7 +3,7 @@ package io.github.iltotore.pokemon
 import io.github.iltotore.pokemon.WhichPokemon.*
 import io.github.iltotore.pokemon.WhichPlayer.*
 import io.github.iltotore.pokemon.ability.Ability
-import io.github.iltotore.pokemon.action.Beta
+import io.github.iltotore.pokemon.action.{Alpha, Beta}
 import io.github.iltotore.pokemon.move.MoveEffect
 import io.github.iltotore.pokemon.move.Move.*
 import utest.*
@@ -51,9 +51,12 @@ object MoveSuite extends TestSuite:
     )
 
     def assertState(effect: MoveEffect, user: WhichPokemon, target: WhichPokemon)(expectedState: Game): Unit =
-      val result = effect(user, target).compile.evaluate(game)._1
+      val result = effect(user, target)
+        .foldMap(Beta.toAlpha)
+        .foldMap(Alpha.toGameEffect)
+        .run(game)
 
-      assert(result == expectedState)
+      assert(result._1 == expectedState)
       
     val snivy = Active(PlayerA)
     val slowbro = Active(PlayerB)

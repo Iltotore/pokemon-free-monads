@@ -17,17 +17,24 @@ enum Theta:
     case Before(program, _)          => program.affectedPokemon
     case Random(chance, program)     => program.affectedPokemon
 
-  def compile: Beta[Unit] = this match
+  def toBeta: Beta[Unit] = this match
     case UseMove(move, user, target) => move.effect(user, target)
-    case SwitchIn(player, slot)      => Beta.SwitchIn(player, slot)
+    case SwitchIn(player, slot)      => Beta.switchIn(player, slot)
     case Cancel(program, instead)    => instead
     case Before(program, before) =>
       for
         _ <- before
-        _ <- program.compile
+        _ <- program.toBeta
       yield ()
 
-    case Random(chance, program) => Beta.Random(chance, program.compile)
+    case Random(chance, program) => Beta.random(chance, program.toBeta)
+
+  def run(game: Game): Game =
+    toBeta
+      .foldMap(Beta.toAlpha)
+      .foldMap(Alpha.toGameEffect)
+      .run(game)
+      ._1
 
   def compare(game: Game, to: Theta): Int = (this, to) match
     case (_: SwitchIn, _: (UseMove | Cancel)) => 1

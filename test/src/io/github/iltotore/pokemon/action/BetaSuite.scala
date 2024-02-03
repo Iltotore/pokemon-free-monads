@@ -5,6 +5,7 @@ import io.github.iltotore.pokemon.WhichPlayer.*
 import io.github.iltotore.pokemon.WhichPokemon.*
 import io.github.iltotore.pokemon.ability.Ability
 import io.github.iltotore.pokemon.action.Beta.*
+import io.github.iltotore.pokemon.util.Free
 import utest.*
 
 object BetaSuite extends TestSuite:
@@ -44,7 +45,13 @@ object BetaSuite extends TestSuite:
     )
 
     def assertEffect[Out](program: Beta[Out])(expectedState: Game, expectedResult: Out): Unit =
-      assert(program.compile.evaluate(game) == (expectedState, expectedResult))
+      val result =
+        program
+          .foldMap(Beta.toAlpha)
+          .foldMap(Alpha.toGameEffect)
+          .run(game)
+
+      assert(result == (expectedState, expectedResult))
 
     def assertResult[Out](program: Beta[Out])(expectedResult: Out): Unit =
       assertEffect(program)(game, expectedResult)
@@ -57,62 +64,74 @@ object BetaSuite extends TestSuite:
       val evee = Active(PlayerA)
       val ghastly = InTeam(PlayerA, 1)
 
-      test("getHealth") - assertResult(GetHealth(evee))(75)
-      test("getMaxHealth") - assertResult(GetMaxHealth(evee))(100)
+      test("getHealth") - assertResult(getHealth(evee))(75)
+      test("getMaxHealth") - assertResult(getMaxHealth(evee))(100)
 
       test("damage"):
-        test("<100") - assertState(Damage(evee, Cause.Self, 50))(game.modifyPokemon(evee, _.copy(currentHealth = 25)))
-        test(">100") - assertState(Damage(evee, Cause.Self, 200))(game.modifyPokemon(evee, _.copy(currentHealth = 0)))
+        test("<100") - assertState(damage(evee, Cause.Self, 50))(game.modifyPokemon(evee, _.copy(currentHealth = 25)))
+        test(">100") - assertState(damage(evee, Cause.Self, 200))(game.modifyPokemon(evee, _.copy(currentHealth = 0)))
 
       test("heal"):
-        test("<100") - assertState(Heal(evee, Cause.Self, 20))(game.modifyPokemon(evee, _.copy(currentHealth = 95)))
-        test(">100") - assertState(Heal(evee, Cause.Self, 200))(game.modifyPokemon(evee, _.copy(currentHealth = 100)))
+        test("<100") - assertState(heal(evee, Cause.Self, 20))(game.modifyPokemon(evee, _.copy(currentHealth = 95)))
+        test(">100") - assertState(heal(evee, Cause.Self, 200))(game.modifyPokemon(evee, _.copy(currentHealth = 100)))
 
-      test("switchIn") - assertState(SwitchIn(PlayerA, 1))(game.modifyPlayer(PlayerA, _.copy(activeSlot = 1)))
+      test("switchIn") - assertState(switchIn(PlayerA, 1))(game.modifyPlayer(PlayerA, _.copy(activeSlot = 1)))
 
       test("inflictStatus"):
-        test("onHealthy") - assertState(InflictStatus(evee, Status.Poison))(game.modifyPokemon(evee, _.copy(status = Status.Poison)))
-        test("alreadyStatused") - assertState(InflictStatus(ghastly, Status.Poison))(game)
+        test("onHealthy") - assertState(inflictStatus(evee, Status.Poison))(game.modifyPokemon(evee, _.copy(status = Status.Poison)))
+        test("alreadyStatused") - assertState(inflictStatus(ghastly, Status.Poison))(game)
 
-      test("cureStatus") - assertState(CureStatus(ghastly))(game.modifyPokemon(ghastly, _.copy(status = Status.Healthy)))
+      test("cureStatus") - assertState(cureStatus(ghastly))(game.modifyPokemon(ghastly, _.copy(status = Status.Healthy)))
 
     test("rewrite"):
 
       val pokemon = Active(PlayerA)
 
       def assertEquivalent[Out](programA: Beta[Out], programB: Beta[Out]): Unit =
-        assert(programA.compile.evaluate(game) == programB.compile.evaluate(game))
+        val resultA =
+          programA
+            .foldMap(Beta.toAlpha)
+            .foldMap(Alpha.toGameEffect)
+            .run(game)
 
-      def assertRewrite[Out, A](program: Beta[Out], expected: Beta[Out])(f: PartialFunction[Beta[A], Beta[A]]): Unit =
+        val resultB =
+          programB
+            .foldMap(Beta.toAlpha)
+            .foldMap(Alpha.toGameEffect)
+            .run(game)
+
+        assert(resultA == resultB)
+
+      def assertRewrite[Out, A](program: Beta[Out], expected: Beta[Out])(f: PartialFunction[Beta.Algebra[?], Beta[?]]): Unit =
         assertEquivalent(program.rewrite(f), expected)
 
       test("leaf"):
         assertRewrite(
-          program = Damage(pokemon, Cause.Self, 20),
-          expected = Heal(pokemon, Cause.Self, 20)
+          program = damage(pokemon, Cause.Self, 20),
+          expected = heal(pokemon, Cause.Self, 20)
         ):
-          case Damage(pokemon, cause, amount) => Heal(pokemon, cause, amount)
+          case Algebra.Damage(pokemon, cause, amount) => heal(pokemon, cause, amount)
 
       test("noMatch"):
         assertRewrite(
-          program = Damage(pokemon, Cause.Self, 20),
-          expected = Damage(pokemon, Cause.Self, 20)
+          program = damage(pokemon, Cause.Self, 20),
+          expected = damage(pokemon, Cause.Self, 20)
         ):
-          case InflictStatus(pokemon, Status.Poison) => CureStatus(pokemon)
+          case Algebra.InflictStatus(pokemon, Status.Poison) => cureStatus(pokemon)
 
       test("flatMap"):
         val program =
           for
-            maxHealth <- GetMaxHealth(pokemon)
-            _ <- Damage(pokemon, Cause.StatusEffect(Status.Poison), maxHealth * 0.12)
+            maxHealth <- getMaxHealth(pokemon)
+            _ <- damage(pokemon, Cause.StatusEffect(Status.Poison), maxHealth * 0.12)
           yield ()
 
         val expected =
           for
-            maxHealth <- GetMaxHealth(pokemon)
-            _ <- Heal(pokemon, Cause.StatusEffect(Status.Poison), maxHealth * 0.12)
+            maxHealth <- getMaxHealth(pokemon)
+            _ <- heal(pokemon, Cause.StatusEffect(Status.Poison), maxHealth * 0.12)
           yield ()
 
         assertRewrite(program, expected):
-          case Damage(pokemon, Cause.StatusEffect(Status.Poison), amount) =>
-            Heal(pokemon, Cause.StatusEffect(Status.Poison), amount)
+          case Algebra.Damage(pokemon, Cause.StatusEffect(Status.Poison), amount) =>
+            heal(pokemon, Cause.StatusEffect(Status.Poison), amount)

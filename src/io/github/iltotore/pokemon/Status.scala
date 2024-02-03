@@ -19,8 +19,8 @@ enum Status:
   def effectBeta(pokemon: WhichPokemon, program: Beta[?]): Beta[?] = this match
     case Healthy => program
     case Burn => program.rewrite:
-        case Beta.Damage(target, Cause.Attack(user, tpe), amount) if user == pokemon =>
-          Beta.Damage(target, Cause.Attack(user, tpe), amount / 2)
+        case Beta.Algebra.Damage(target, Cause.Attack(user, tpe), amount) if user == pokemon =>
+          Beta.damage(target, Cause.Attack(user, tpe), amount / 2)
 
     case Paralysis => program
     case Poison    => program
@@ -36,12 +36,12 @@ enum Status:
 
     case Poison => program
     case Sleep(turnsLeft) if turnsLeft > 0 =>
-      Theta.Cancel(program, Beta.SetStatus(program.affectedPokemon, Sleep(turnsLeft - 1)))
-    case Sleep(_) => Theta.Before(program, Beta.CureStatus(program.affectedPokemon))
+      Theta.Cancel(program, Beta.setStatus(program.affectedPokemon, Sleep(turnsLeft - 1)))
+    case Sleep(_) => Theta.Before(program, Beta.cureStatus(program.affectedPokemon))
 
   def effectEndTurn(pokemon: WhichPokemon): Beta[Unit] = this match
-    case Healthy          => Beta.nothing
+    case Healthy          => Beta.unit
     case Burn             => Beta.damagePercent(pokemon, Cause.StatusEffect(Burn), 0.06)
-    case Paralysis        => Beta.nothing
+    case Paralysis        => Beta.unit
     case Poison           => Beta.damagePercent(pokemon, Cause.StatusEffect(Poison), 0.12)
-    case Sleep(turnsLeft) => Beta.nothing
+    case Sleep(turnsLeft) => Beta.unit

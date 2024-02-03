@@ -72,7 +72,7 @@ object Main:
           if player.alive && !player.activePokemon.alive
         yield tui.ask(s"${player.name}, choose the pokemon to send", tui.parseSwitch(which, player, _))
 
-      game = switches.foldLeft(game)((g, program) => program.compile.compile.evaluate(g)._1)
+      game = switches.foldLeft(game)((g, program) => program.run(game))
       if switches.nonEmpty then println(tui.showState(game))
 
       val actions =

@@ -3,7 +3,7 @@ package io.github.iltotore.pokemon
 import io.github.iltotore.pokemon.WhichPokemon.*
 import io.github.iltotore.pokemon.WhichPlayer.*
 import io.github.iltotore.pokemon.ability.Ability
-import io.github.iltotore.pokemon.action.{Beta, Cause}
+import io.github.iltotore.pokemon.action.{Alpha, Beta, Cause}
 import io.github.iltotore.pokemon.action.Beta.*
 import utest.*
 
@@ -77,33 +77,33 @@ object AbilitySuite extends TestSuite:
 
     def assertState(owner: WhichPokemon, ability: Ability, program: Beta[Unit])(expectedState: Game): Unit =
       val rewritten = ability.effect(owner, program)
-      val compiled = rewritten.compile
-      val result = compiled.evaluate(game)._1
+      val compiled = rewritten.foldMap(Beta.toAlpha)
+      val result = compiled.foldMap(Alpha.toGameEffect).run(game)._1
 
       assert(result == expectedState)
 
     test("overgrow") - assertState(
       owner = snivy,
       ability = Ability.Overgrow,
-      program = Damage(breloom, Cause.Attack(snivy, Type.Grass), 50)
+      program = damage(breloom, Cause.Attack(snivy, Type.Grass), 50)
     )(game.modifyPokemon(breloom, _.copy(currentHealth = 88 - (50 * 1.5 / 2))))
 
     test("poisonHeal") - assertState(
       owner = breloom,
       ability = Ability.PoisonHeal,
-      program = Damage(breloom, Cause.StatusEffect(Status.Poison), 12)
+      program = damage(breloom, Cause.StatusEffect(Status.Poison), 12)
     )(game.modifyPokemon(breloom, _.copy(currentHealth = 100)))
 
     test("guts") - assertState(
       owner = jolteon,
       ability = Ability.Guts,
-      program = Damage(breloom, Cause.Attack(jolteon, Type.Electric), 10)
+      program = damage(breloom, Cause.Attack(jolteon, Type.Electric), 10)
     )(game.modifyPokemon(breloom, _.copy(currentHealth = 88 - 15)))
 
     test("regenerator") - assertState(
       owner = slowbro,
       ability = Ability.Regenerator,
-      program = SwitchIn(PlayerB, 1)
+      program = switchIn(PlayerB, 1)
     )(
       game
         .modifyPokemon(slowbro, _.copy(currentHealth = 100))

@@ -1,8 +1,10 @@
 package io.github.iltotore.pokemon
 
-import io.github.iltotore.pokemon.action.Theta
+import io.github.iltotore.pokemon.action.*
 
-case class Game(turn: Int, players: Map[WhichPlayer, Player]):
+import scala.util.Random
+
+case class Game(turn: Int, players: Map[WhichPlayer, Player], random: Random = Random()):
 
   def result: Option[GameResult] =
     val alive = players.collect:
@@ -37,10 +39,15 @@ case class Game(turn: Int, players: Map[WhichPlayer, Player]):
           val activeAbilities = game.players.map(_._2.activePokemon.ability)
 
           val thetaStatus = playerActivePokemon.status.effectTheta(theta)
-          val compiled = activeAbilities.foldLeft(thetaStatus.compile)((action, ability) => ability.effect(playerActive, action))
+          val compiled = activeAbilities.foldLeft(thetaStatus.toBeta)((action, ability) => ability.effect(playerActive, action))
           val beta = playerActivePokemon.status.effectBeta(playerActive, compiled)
 
-          beta.compile.evaluate(game)._1
+          beta
+            .foldMap(Beta.toAlpha)
+            .foldMap(Alpha.toGameEffect)
+            .run(game)
+            ._1
+          
         else game
 
     val endOfTurn = players.foldLeft(afterTurn):
@@ -55,7 +62,12 @@ case class Game(turn: Int, players: Map[WhichPlayer, Player]):
           val compiled = activeAbilities.foldLeft(endOfTurnStatus)((effect, ability) => ability.effect(playerActive, effect))
           val beta = playerActivePokemon.status.effectBeta(playerActive, compiled)
 
-          beta.compile.evaluate(game)._1
+          beta
+            .foldMap(Beta.toAlpha)
+            .foldMap(Alpha.toGameEffect)
+            .run(game)
+            ._1
+          
         else game
 
     endOfTurn.copy(turn = endOfTurn.turn + 1)

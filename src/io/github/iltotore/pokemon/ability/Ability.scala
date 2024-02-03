@@ -17,15 +17,15 @@ object Ability:
     name = "Overgrow",
     effect = (owner, program) =>
       program.rewrite:
-        case Damage(pokemon, Cause.Attack(attacker, Type.Grass), amount) if attacker == owner =>
+        case Algebra.Damage(pokemon, Cause.Attack(attacker, Type.Grass), amount) if attacker == owner =>
           for
-            health <- GetHealth(owner)
-            maxHealth <- GetMaxHealth(owner)
-            damage =
+            health <- getHealth(owner)
+            maxHealth <- getMaxHealth(owner)
+            dmg =
               if health <= maxHealth / 3 then amount * 1.5
               else amount
 
-            _ <- Damage(pokemon, Cause.Attack(owner, Type.Grass), damage)
+            _ <- damage(pokemon, Cause.Attack(owner, Type.Grass), dmg)
           yield ()
   )
 
@@ -33,25 +33,22 @@ object Ability:
     name = "Poison Heal",
     effect = (owner, program) =>
       program.rewrite:
-        case Damage(pokemon, Cause.StatusEffect(Status.Poison), _) if pokemon == owner =>
-          for
-            maxHealth <- GetMaxHealth(owner)
-            _ <- Heal(owner, Cause.StatusEffect(Status.Poison), maxHealth * 0.12)
-          yield ()
+        case Algebra.Damage(pokemon, Cause.StatusEffect(Status.Poison), _) if pokemon == owner =>
+          healPercent(pokemon, Cause.StatusEffect(Status.Poison), 0.12)
   )
 
   val Guts: Ability = Ability(
     name = "Guts",
     effect = (owner, program) =>
       program.rewrite:
-        case Damage(pokemon, Cause.Attack(attacker, tpe), amount) if attacker == owner =>
+        case Algebra.Damage(pokemon, Cause.Attack(attacker, tpe), amount) if attacker == owner =>
           for
-            status <- GetStatus(owner)
-            damage =
+            status <- getStatus(owner)
+            dmg =
               if status == Status.Healthy then amount
               else amount * 1.5
 
-            _ <- Damage(pokemon, Cause.Attack(owner, tpe), damage)
+            _ <- damage(pokemon, Cause.Attack(owner, tpe), dmg)
           yield ()
   )
 
@@ -59,10 +56,9 @@ object Ability:
     name = "Regenerator",
     effect = (owner, program) =>
       program.rewrite:
-        case SwitchIn(player, slot) if owner.active && owner.player == player =>
+        case Algebra.SwitchIn(player, slot) if owner.active && owner.player == player =>
           for
-            maxHealth <- GetMaxHealth(owner)
-            _ <- Heal(owner, Cause.Self, maxHealth * 0.33)
-            _ <- SwitchIn(player, slot)
+            _ <- healPercent(owner, Cause.Self, 0.33)
+            _ <- switchIn(player, slot)
           yield ()
   )

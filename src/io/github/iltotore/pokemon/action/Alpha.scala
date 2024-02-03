@@ -1,43 +1,71 @@
 package io.github.iltotore.pokemon.action
 
 import io.github.iltotore.pokemon.*
+import io.github.iltotore.pokemon.util.*
 
-enum Alpha[+Out]:
-  case GetHealth(pokemon: WhichPokemon) extends Alpha[Double]
-  case GetMaxHealth(pokemon: WhichPokemon) extends Alpha[Double]
-  case GetType(pokemon: WhichPokemon) extends Alpha[Type]
-  case GetStatus(pokemon: WhichPokemon) extends Alpha[Status]
-  case SetHealth(pokemon: WhichPokemon, health: Double) extends Alpha[Unit]
-  case SetType(pokemon: WhichPokemon, tpe: Type) extends Alpha[Unit]
-  case SetStatus(pokemon: WhichPokemon, status: Status) extends Alpha[Unit]
-  case SetActivePokemon(player: WhichPlayer, slot: Int) extends Alpha[Unit]
-  case Random(chance: Double, program: Alpha[Unit]) extends Alpha[Unit]
-  case FlatMap[A, B](program: Alpha[A], f: A => Alpha[B]) extends Alpha[B]
-  case Pure(result: Out)
-
-  def flatMap[B](f: Out => Alpha[B]): Alpha[B] = FlatMap(this, f)
-
-  def map[B](f: Out => B): Alpha[B] = flatMap(out => Pure(f(out)))
-
-  def evaluate(game: Game): (Game, Out) = this match
-    case GetHealth(pokemon)             => (game, game.getPokemon(pokemon).currentHealth)
-    case GetMaxHealth(pokemon)          => (game, game.getPokemon(pokemon).maxHealth)
-    case GetType(pokemon)               => (game, game.getPokemon(pokemon).pokemonType)
-    case GetStatus(pokemon)             => (game, game.getPokemon(pokemon).status)
-    case SetHealth(pokemon, health)     => (game.modifyPokemon(pokemon, _.copy(currentHealth = health)), ())
-    case SetType(pokemon, tpe)          => (game.modifyPokemon(pokemon, _.copy(pokemonType = tpe)), ())
-    case SetStatus(pokemon, status)     => (game.modifyPokemon(pokemon, _.copy(status = status)), ())
-    case SetActivePokemon(player, slot) => (game.modifyPlayer(player, _.copy(activeSlot = slot)), ())
-    case Random(chance, program) =>
-      if math.random() <= chance then program.evaluate(game)
-      else (game, ())
-
-    case FlatMap(program, f) =>
-      val (gameState, result) = program.evaluate(game)
-      f(result).evaluate(gameState)
-
-    case Pure(result) => (game, result)
-
+type Alpha[A] = Free[Alpha.Algebra, A]
 object Alpha:
+  
+  enum Algebra[Out]:
+    case GetHealth(pokemon: WhichPokemon) extends Algebra[Double]
+    case GetMaxHealth(pokemon: WhichPokemon) extends Algebra[Double]
+    case GetType(pokemon: WhichPokemon) extends Algebra[Type]
+    case GetStatus(pokemon: WhichPokemon) extends Algebra[Status]
+    case SetHealth(pokemon: WhichPokemon, health: Double) extends Algebra[Unit]
+    case SetType(pokemon: WhichPokemon, tpe: Type) extends Algebra[Unit]
+    case SetStatus(pokemon: WhichPokemon, status: Status) extends Algebra[Unit]
+    case SetActivePokemon(player: WhichPlayer, slot: Int) extends Algebra[Unit]
+    case Random(chance: Double, program: Alpha[Unit]) extends Algebra[Unit]
+    
+  import Algebra.*
 
-  def NoAction: Alpha[Unit] = Pure(())
+  def pure[A](value: A): Alpha[A] = Free.pure(value)
+  
+  val unit: Alpha[Unit] = pure(())
+  
+  def getHealth(pokemon: WhichPokemon): Alpha[Double] = Free.liftM(GetHealth(pokemon))
+
+  def getMaxHealth(pokemon: WhichPokemon): Alpha[Double] = Free.liftM(GetMaxHealth(pokemon))
+
+  def getType(pokemon: WhichPokemon): Alpha[Type] = Free.liftM(GetType(pokemon))
+
+  def getStatus(pokemon: WhichPokemon): Alpha[Status] = Free.liftM(GetStatus(pokemon))
+
+  def setHealth(pokemon: WhichPokemon, health: Double): Alpha[Unit] = Free.liftM(SetHealth(pokemon, health))
+
+  def setType(pokemon: WhichPokemon, tpe: Type): Alpha[Unit] = Free.liftM(SetType(pokemon, tpe))
+
+  def setStatus(pokemon: WhichPokemon, status: Status): Alpha[Unit] = Free.liftM(SetStatus(pokemon, status))
+
+  def setActivePokemon(player: WhichPlayer, slot: Int): Alpha[Unit] = Free.liftM(SetActivePokemon(player, slot))
+
+  def random(chance: Double, program: Alpha[Unit]): Alpha[Unit] = Free.liftM(Random(chance, program))
+
+  def decreaseHealth(pokemon: WhichPokemon, amount: Double): Alpha[Unit] =
+    for
+      health <- getHealth(pokemon)
+      _      <- setHealth(pokemon, math.max(0, health - amount))
+    yield ()
+    
+  def increaseHealth(pokemon: WhichPokemon, amount: Double): Alpha[Unit] =
+    for
+      health    <- getHealth(pokemon)
+      maxHealth <- getMaxHealth(pokemon)
+      _         <- setHealth(pokemon, math.min(maxHealth, health + amount))
+    yield ()
+
+  def toGameEffect: Algebra ~> GameEffect = new:
+
+    override def apply[A](m: Algebra[A]): GameEffect[A] = game =>
+      m match
+        case GetHealth(pokemon) => (game, game.getPokemon(pokemon).currentHealth)
+        case GetMaxHealth(pokemon) => (game, game.getPokemon(pokemon).maxHealth)
+        case GetType(pokemon) => (game, game.getPokemon(pokemon).pokemonType)
+        case GetStatus(pokemon) => (game, game.getPokemon(pokemon).status)
+        case SetHealth(pokemon, health) => (game.modifyPokemon(pokemon, _.copy(currentHealth = health)), ())
+        case SetType(pokemon, tpe) => (game.modifyPokemon(pokemon, _.copy(pokemonType = tpe)), ())
+        case SetStatus(pokemon, status) => (game.modifyPokemon(pokemon, _.copy(status = status)), ())
+        case SetActivePokemon(player, slot) => (game.modifyPlayer(player, _.copy(activeSlot = slot)), ())
+        case Random(chance, program) =>
+          if game.random.nextGaussian() <= chance then program.foldMap(toGameEffect).run(game)
+          else (game, ())

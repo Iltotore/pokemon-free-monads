@@ -32,7 +32,7 @@ object AlphaSuite extends TestSuite:
     )
 
     def assertEffect[Out](program: Alpha[Out])(expectedState: Game, expectedResult: Out): Unit =
-      assert(program.evaluate(game) == (expectedState, expectedResult))
+      assert(program.foldMap(Alpha.toGameEffect).run(game) == (expectedState, expectedResult))
 
     def assertResult[Out](program: Alpha[Out])(expectedResult: Out): Unit =
       assertEffect(program)(game, expectedResult)
@@ -40,36 +40,36 @@ object AlphaSuite extends TestSuite:
     def assertState(program: Alpha[Unit])(expectedState: Game): Unit =
       assertEffect(program)(expectedState, ())
 
-    test("getHealth") - assertResult(GetHealth(Active(PlayerA)))(100)
-    test("getMaxHealth") - assertResult(GetMaxHealth(Active(PlayerA)))(100)
-    test("getType") - assertResult(GetType(Active(PlayerA)))(Type.Normal)
-    test("getStatus") - assertResult(GetStatus(Active(PlayerA)))(Status.Healthy)
+    test("getHealth") - assertResult(getHealth(Active(PlayerA)))(100)
+    test("getMaxHealth") - assertResult(getMaxHealth(Active(PlayerA)))(100)
+    test("getType") - assertResult(getType(Active(PlayerA)))(Type.Normal)
+    test("getStatus") - assertResult(getStatus(Active(PlayerA)))(Status.Healthy)
 
     test("setHealth") - assertState(
-      SetHealth(Active(PlayerA), 50)
+      setHealth(Active(PlayerA), 50)
     )(game.modifyPokemon(Active(PlayerA), _.copy(currentHealth = 50)))
 
     test("setType") - assertState(
-      SetType(Active(PlayerA), Type.Fire)
+      setType(Active(PlayerA), Type.Fire)
     )(game.modifyPokemon(Active(PlayerA), _.copy(pokemonType = Type.Fire)))
 
     test("setStatus") - assertState(
-      SetStatus(Active(PlayerA), Status.Poison)
+      setStatus(Active(PlayerA), Status.Poison)
     )(game.modifyPokemon(Active(PlayerA), _.copy(status = Status.Poison)))
 
     test("setCurrentPokemon") - assertState(
-      SetActivePokemon(PlayerA, 1)
+      setActivePokemon(PlayerA, 1)
     )(game.modifyPlayer(PlayerA, _.copy(activeSlot = 1)))
 
     test("flatMap"):
 
       val program =
         for
-          health <- GetHealth(Active(PlayerA))
-          _      <- SetHealth(Active(PlayerA), health/2)
+          health <- getHealth(Active(PlayerA))
+          _      <- setHealth(Active(PlayerA), health/2)
         yield
           ()
 
       assertState(program)(game.modifyPokemon(Active(PlayerA), _.copy(currentHealth = 50)))
 
-    test("pure") - assertResult(Pure(42))(42)
+    test("pure") - assertResult(pure(42))(42)
