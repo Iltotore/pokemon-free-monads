@@ -11,11 +11,11 @@ object Alpha:
     case GetMaxHealth(pokemon: WhichPokemon) extends Algebra[Double]
     case GetType(pokemon: WhichPokemon) extends Algebra[Type]
     case GetStatus(pokemon: WhichPokemon) extends Algebra[Status]
+    case Random() extends Algebra[Double]
     case SetHealth(pokemon: WhichPokemon, health: Double) extends Algebra[Unit]
     case SetType(pokemon: WhichPokemon, tpe: Type) extends Algebra[Unit]
     case SetStatus(pokemon: WhichPokemon, status: Status) extends Algebra[Unit]
     case SetActivePokemon(player: WhichPlayer, slot: Int) extends Algebra[Unit]
-    case Random(chance: Double, program: Alpha[Unit]) extends Algebra[Unit]
     
   import Algebra.*
 
@@ -30,6 +30,8 @@ object Alpha:
   def getType(pokemon: WhichPokemon): Alpha[Type] = Free.liftM(GetType(pokemon))
 
   def getStatus(pokemon: WhichPokemon): Alpha[Status] = Free.liftM(GetStatus(pokemon))
+  
+  def random(): Alpha[Double] = Free.liftM(Random())
 
   def setHealth(pokemon: WhichPokemon, health: Double): Alpha[Unit] = Free.liftM(SetHealth(pokemon, health))
 
@@ -38,8 +40,6 @@ object Alpha:
   def setStatus(pokemon: WhichPokemon, status: Status): Alpha[Unit] = Free.liftM(SetStatus(pokemon, status))
 
   def setActivePokemon(player: WhichPlayer, slot: Int): Alpha[Unit] = Free.liftM(SetActivePokemon(player, slot))
-
-  def random(chance: Double, program: Alpha[Unit]): Alpha[Unit] = Free.liftM(Random(chance, program))
 
   def decreaseHealth(pokemon: WhichPokemon, amount: Double): Alpha[Unit] =
     for
@@ -62,10 +62,8 @@ object Alpha:
         case GetMaxHealth(pokemon) => (game, game.getPokemon(pokemon).maxHealth)
         case GetType(pokemon) => (game, game.getPokemon(pokemon).pokemonType)
         case GetStatus(pokemon) => (game, game.getPokemon(pokemon).status)
+        case Random() => (game, game.random.nextGaussian())
         case SetHealth(pokemon, health) => (game.modifyPokemon(pokemon, _.copy(currentHealth = health)), ())
         case SetType(pokemon, tpe) => (game.modifyPokemon(pokemon, _.copy(pokemonType = tpe)), ())
         case SetStatus(pokemon, status) => (game.modifyPokemon(pokemon, _.copy(status = status)), ())
         case SetActivePokemon(player, slot) => (game.modifyPlayer(player, _.copy(activeSlot = slot)), ())
-        case Random(chance, program) =>
-          if game.random.nextGaussian() <= chance then program.foldMap(toGameEffect).run(game)
-          else (game, ())

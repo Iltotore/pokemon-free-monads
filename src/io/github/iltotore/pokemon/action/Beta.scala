@@ -10,13 +10,13 @@ object Beta:
     case GetHealth(pokemon: WhichPokemon) extends Algebra[Double]
     case GetMaxHealth(pokemon: WhichPokemon) extends Algebra[Double]
     case GetStatus(pokemon: WhichPokemon) extends Algebra[Status]
+    case Random() extends Algebra[Double]
     case Damage(pokemon: WhichPokemon, cause: Cause, amount: Double) extends Algebra[Unit]
     case Heal(pokemon: WhichPokemon, cause: Cause, amount: Double) extends Algebra[Unit]
     case SwitchIn(player: WhichPlayer, slot: Int) extends Algebra[Unit]
     case SetStatus(pokemon: WhichPokemon, status: Status) extends Algebra[Unit]
     case InflictStatus(pokemon: WhichPokemon, status: Status) extends Algebra[Unit]
     case CureStatus(pokemon: WhichPokemon) extends Algebra[Unit]
-    case Random(chance: Double, program: Beta[Unit]) extends Algebra[Unit]
 
   import Algebra.*
   
@@ -27,6 +27,15 @@ object Beta:
   def getMaxHealth(pokemon: WhichPokemon): Beta[Double] = Free.liftM(GetMaxHealth(pokemon))
 
   def getStatus(pokemon: WhichPokemon): Beta[Status] = Free.liftM(GetStatus(pokemon))
+  
+  def random(): Beta[Double] = Free.liftM(Random())
+  
+  def randomInt(max: Int): Beta[Int] = Free.liftM(Random()).map(x => (x * max).toInt)
+  
+  def chooseRandom(chance: Double, thenDo: Beta[Unit], orElse: Beta[Unit] = Beta.unit): Beta[Unit] =
+    random().flatMap: x =>
+      if x <= chance then thenDo
+      else orElse
   
   def damage(pokemon: WhichPokemon, cause: Cause, amount: Double): Beta[Unit] = Free.liftM(Damage(pokemon, cause, amount))
   
@@ -51,8 +60,6 @@ object Beta:
   def inflictStatus(pokemon: WhichPokemon, status: Status): Beta[Unit] = Free.liftM(InflictStatus(pokemon, status))
 
   def cureStatus(pokemon: WhichPokemon): Beta[Unit] = Free.liftM(CureStatus(pokemon))
-
-  def random(chance: Double, program: Beta[Unit]): Beta[Unit] = Free.liftM(Random(chance, program))
   
   def toAlpha: Algebra ~> Alpha = new:
 
@@ -60,6 +67,7 @@ object Beta:
       case GetHealth(pokemon)    => Alpha.getHealth(pokemon)
       case GetMaxHealth(pokemon) => Alpha.getMaxHealth(pokemon)
       case GetStatus(pokemon)    => Alpha.getStatus(pokemon)
+      case Random()              => Alpha.random()
       case Damage(pokemon, cause, amount) =>
         for
           effectiveness <- cause match
@@ -85,4 +93,3 @@ object Beta:
         yield ()
   
       case CureStatus(pokemon)     => Alpha.setStatus(pokemon, Status.Healthy)
-      case Random(chance, program) => Alpha.random(chance, program.foldMap(toAlpha))

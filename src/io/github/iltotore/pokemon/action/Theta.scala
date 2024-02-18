@@ -27,7 +27,7 @@ enum Theta:
         _ <- program.toBeta
       yield ()
 
-    case Random(chance, program) => Beta.random(chance, program.toBeta)
+    case Random(chance, program) => Beta.chooseRandom(chance, program.toBeta)
 
   def run(game: Game): Game =
     toBeta
