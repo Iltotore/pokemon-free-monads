@@ -1,6 +1,5 @@
 package io.github.iltotore.pokemon.util
 
-
 trait Monad[M[_]]:
 
   def pure[A](value: A): M[A]

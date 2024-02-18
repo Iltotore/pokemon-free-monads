@@ -47,14 +47,13 @@ case class Game(turn: Int, players: Map[WhichPlayer, Player], random: Random = R
             .foldMap(Alpha.toGameEffect)
             .run(game)
             ._1
-          
         else game
 
     val endOfTurn = players.foldLeft(afterTurn):
       case (game, (which, player)) =>
         val playerActive = WhichPokemon.Active(which)
         val playerActivePokemon = game.getPokemon(playerActive)
-        
+
         if playerActivePokemon.alive then
           val activeAbilities = game.players.map(_._2.activePokemon.ability)
 
@@ -67,7 +66,6 @@ case class Game(turn: Int, players: Map[WhichPlayer, Player], random: Random = R
             .foldMap(Alpha.toGameEffect)
             .run(game)
             ._1
-          
         else game
 
     endOfTurn.copy(turn = endOfTurn.turn + 1)
