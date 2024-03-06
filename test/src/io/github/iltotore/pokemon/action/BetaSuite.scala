@@ -102,18 +102,18 @@ object BetaSuite extends TestSuite:
 
         assert(resultA == resultB)
 
-      def assertRewrite[Out, A](program: Beta[Out], expected: Beta[Out])(f: PartialFunction[Beta.Algebra[?], Beta[?]]): Unit =
+      def assertRewrite[Out, A](program: Beta[Out], expected: Beta[Out])(f: PartialFunction[Beta.Algebra[A], Beta[A]]): Unit =
         assertEquivalent(program.rewrite(f), expected)
 
       test("leaf"):
-        assertRewrite(
+        assertRewrite[Unit, Unit](
           program = damage(pokemon, Cause.Self, 20),
           expected = heal(pokemon, Cause.Self, 20)
         ):
           case Algebra.Damage(pokemon, cause, amount) => heal(pokemon, cause, amount)
 
       test("noMatch"):
-        assertRewrite(
+        assertRewrite[Unit, Unit](
           program = damage(pokemon, Cause.Self, 20),
           expected = damage(pokemon, Cause.Self, 20)
         ):
@@ -132,6 +132,6 @@ object BetaSuite extends TestSuite:
             _ <- heal(pokemon, Cause.StatusEffect(Status.Poison), maxHealth * 0.12)
           yield ()
 
-        assertRewrite(program, expected):
+        assertRewrite[Unit, Unit](program, expected):
           case Algebra.Damage(pokemon, Cause.StatusEffect(Status.Poison), amount) =>
             heal(pokemon, Cause.StatusEffect(Status.Poison), amount)

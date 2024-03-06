@@ -32,7 +32,7 @@ object Ability:
   val PoisonHeal: Ability = Ability(
     name = "Poison Heal",
     effect = (owner, program) =>
-      program.rewrite:
+      program.rewrite[Unit]:
         case Algebra.Damage(pokemon, Cause.StatusEffect(Status.Poison), _) if pokemon == owner =>
           healPercent(pokemon, Cause.StatusEffect(Status.Poison), 0.12)
   )

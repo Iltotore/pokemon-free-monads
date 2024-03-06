@@ -11,7 +11,7 @@ enum Free[M[_], A]:
       free.foldMap(natTrans).flatMap(x => f(x).foldMap(natTrans))
     case Suspend(monad) => natTrans(monad)
 
-  def rewrite[B](rule: PartialFunction[M[B], Free[M, ?]]): Free[M, A] = this match
+  def rewrite[B](rule: PartialFunction[M[B], Free[M, B]]): Free[M, A] = this match
     case Suspend(monad: M[B] @unchecked) if rule.isDefinedAt(monad) => rule(monad).asInstanceOf[Free[M, A]]
     case FlatMap(free, f)                                           => FlatMap(free.rewrite(rule), x => f(x).rewrite(rule))
     case _                                                          => this

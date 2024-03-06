@@ -18,7 +18,7 @@ enum Status:
 
   def effectBeta(pokemon: WhichPokemon, program: Beta[?]): Beta[?] = this match
     case Healthy => program
-    case Burn => program.rewrite:
+    case Burn => program.rewrite[Unit]:
         case Beta.Algebra.Damage(target, Cause.Attack(user, tpe), amount) if user == pokemon =>
           Beta.damage(target, Cause.Attack(user, tpe), amount / 2)
 
