@@ -1,6 +1,6 @@
 package io.github.iltotore.pokemon
 
-import io.github.iltotore.pokemon.action.{Beta, Cause, Theta}
+import io.github.iltotore.pokemon.action.{Beta, Cause, Gamma}
 
 enum Status:
   case Healthy
@@ -26,18 +26,18 @@ enum Status:
     case Poison    => program
     case Sleep(_)  => program
 
-  def effectTheta(program: Theta): Theta = this match
+  def effectTheta(program: Gamma): Gamma = this match
     case Healthy => program
     case Burn    => program
     case Paralysis =>
       program match
-        case _: Theta.UseMove => Theta.Random(0.33, program)
+        case _: Gamma.UseMove => Gamma.Random(0.33, program)
         case _                => program
 
     case Poison => program
     case Sleep(turnsLeft) if turnsLeft > 0 =>
-      Theta.Cancel(program, Beta.setStatus(program.affectedPokemon, Sleep(turnsLeft - 1)))
-    case Sleep(_) => Theta.Before(program, Beta.cureStatus(program.affectedPokemon))
+      Gamma.Cancel(program, Beta.setStatus(program.affectedPokemon, Sleep(turnsLeft - 1)))
+    case Sleep(_) => Gamma.Before(program, Beta.cureStatus(program.affectedPokemon))
 
   def effectEndTurn(pokemon: WhichPokemon): Beta[Unit] = this match
     case Healthy          => Beta.unit

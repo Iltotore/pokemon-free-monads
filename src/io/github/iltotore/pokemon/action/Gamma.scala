@@ -3,12 +3,12 @@ package io.github.iltotore.pokemon.action
 import io.github.iltotore.pokemon.{Game, WhichPlayer, WhichPokemon}
 import io.github.iltotore.pokemon.move.Move
 
-enum Theta:
+enum Gamma:
   case UseMove(move: Move, user: WhichPokemon, target: WhichPokemon)
   case SwitchIn(player: WhichPlayer, slot: Int)
-  case Cancel(program: Theta, instead: Beta[Unit])
-  case Before(program: Theta, before: Beta[Unit])
-  case Random(chance: Double, program: Theta)
+  case Cancel(program: Gamma, instead: Beta[Unit])
+  case Before(program: Gamma, before: Beta[Unit])
+  case Random(chance: Double, program: Gamma)
 
   def affectedPokemon: WhichPokemon = this match
     case UseMove(move, user, target) => user
@@ -36,7 +36,7 @@ enum Theta:
       .run(game)
       ._1
 
-  def compare(game: Game, to: Theta): Int = (this, to) match
+  def compare(game: Game, to: Gamma): Int = (this, to) match
     case (_: SwitchIn, _: (UseMove | Cancel)) => 1
     case (_: (UseMove | Cancel), _: SwitchIn) => -1
     case _ =>

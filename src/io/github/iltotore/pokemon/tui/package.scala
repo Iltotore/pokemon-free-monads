@@ -1,6 +1,6 @@
 package io.github.iltotore.pokemon.tui
 
-import io.github.iltotore.pokemon.action.Theta
+import io.github.iltotore.pokemon.action.Gamma
 import io.github.iltotore.pokemon.{Game, Player, Pokemon, WhichPlayer, WhichPokemon}
 import io.github.iltotore.pokemon.move.Move
 
@@ -80,16 +80,16 @@ def getTargetPlayer(name: String, game: Game): Either[String, WhichPokemon] = na
         case (w, p) if p.name.replace(" ", "").equalsIgnoreCase(name.replace(" ", "")) => WhichPokemon.Active(w)
       .toRight(s"No player named $name")
 
-def parseSwitch(which: WhichPlayer, player: Player, slot: String): Either[String, Theta] =
+def parseSwitch(which: WhichPlayer, player: Player, slot: String): Either[String, Gamma] =
   slot
     .toIntOption
     .toRight(s"Invalid int: $slot")
     .filterOrElse(i => i >= 0 && i < player.team.length, s"No pokemon at slot $slot")
     .filterOrElse(_ != player.activeSlot, s"${player.activePokemon.species} is already on the terrain")
     .filterOrElse(player.team(_).alive, "This pokemon is fainted")
-    .map(i => Theta.SwitchIn(which, i))
+    .map(i => Gamma.SwitchIn(which, i))
 
-def parseAction(which: WhichPlayer, game: Game, action: String): Either[String, Theta] =
+def parseAction(which: WhichPlayer, game: Game, action: String): Either[String, Gamma] =
   val player = game.players(which)
   val active = player.activePokemon
 
@@ -98,7 +98,7 @@ def parseAction(which: WhichPlayer, game: Game, action: String): Either[String, 
       for
         move <- getMove(move, active.moves)
         target <- getTargetPlayer(target, game)
-      yield Theta.UseMove(move, WhichPokemon.Active(which), target)
+      yield Gamma.UseMove(move, WhichPokemon.Active(which), target)
 
     case s"switch $slot" =>
       parseSwitch(which, player, slot)

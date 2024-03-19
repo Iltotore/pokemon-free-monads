@@ -27,7 +27,7 @@ case class Game(turn: Int, players: Map[WhichPlayer, Player], random: Random = R
   def modifyPokemon(which: WhichPokemon, f: Pokemon => Pokemon): Game =
     withPokemon(which, f(getPokemon(which)))
 
-  def doTurn(actions: List[(WhichPlayer, Theta)]): Game =
+  def doTurn(actions: List[(WhichPlayer, Gamma)]): Game =
     val ordered = actions.sortWith((a, b) => a._2.compare(this, b._2) < 0)
 
     val afterTurn = ordered.foldLeft(this):
